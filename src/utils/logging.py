@@ -53,12 +53,19 @@ class Logger:
 
 # set up a custom logger
 def get_logger():
+    # 创建一个日志记录对象，logging.getLogger()返回一个全局的日志记录器实例
     logger = logging.getLogger()
+    # 清空日志记录器的所有处理器，确保日志记录器没有现有的处理器
     logger.handlers = []
+    # 创建一个输出到标准输出流的处理器
     ch = logging.StreamHandler()
+    # 创建一个日志消息格式化器，定义了包括日志级别、时间戳、记录器名和消息内容在内的日志消息的显示格式
     formatter = logging.Formatter('[%(levelname)s %(asctime)s] %(name)s %(message)s', '%H:%M:%S')
+    # 将上述定义的日志消息格式化器应用到之前创建的处理器ch
     ch.setFormatter(formatter)
+    # 将处理器ch添加到日志记录器logger中，使得日志消息可以通过处理器输出到控制台
     logger.addHandler(ch)
+    # 记录的日志级别为debug
     logger.setLevel('DEBUG')
 
     return logger
