@@ -3,6 +3,7 @@ import numpy as np
 from types import SimpleNamespace as SN
 
 
+# EpisodeBatch类对象用于存储episode的样本
 class EpisodeBatch:
     def __init__(self,
                  scheme,
@@ -204,6 +205,7 @@ class EpisodeBatch:
                                                                                      self.groups.keys())
 
 
+# ReplayBuffer类对象用于存储所有的off-policy样本，也即EpisodeBatch类变量的样本会持续地补充到ReplayBuffer类变量中
 class ReplayBuffer(EpisodeBatch):
     def __init__(self, scheme, groups, buffer_size, max_seq_length, preprocess=None, device="cpu"):
         super(ReplayBuffer, self).__init__(scheme, groups, buffer_size, max_seq_length, preprocess=preprocess, device=device)

@@ -130,6 +130,6 @@ if __name__ == '__main__':
     # 在这里我们使用FileStorageObserver来保存实验信息和结果到之前创建的file_obs_path目录中
     ex.observers.append(FileStorageObserver.create(file_obs_path))
 
-    # 通过这行来运行Sacred实验
+    # 通过这行来运行Sacred实验，会调用之前通过装饰器注册的函数
     ex.run_commandline(params)
 

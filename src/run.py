@@ -98,6 +98,7 @@ def run_sequential(args, logger):
 
     # Init runner so we can get env info
     # 创建一个名为runner的对象，根据传入的参数arg.runner来选择合适的runner类
+    # runner的主要作用是运行环境以产生训练样本
     runner = r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
@@ -139,6 +140,11 @@ def run_sequential(args, logger):
     # 创建一个用于存储训练数据的缓冲区，使得智能体可以从中随机采样来进行训练
     # args.buffer_size 表示回放缓冲区的最大容量
     # env_info["episode_limit"] + 1 表示每个episode的最大长度
+    # ReplayBuffer的父类是EpisodeBatch，用于存储episode的样本
+    # ReplayBuffer类对象用于存储所有的off-policy样本
+    # EpisodeBatch与ReplayBuffer中的样本都是以episode为单位存储的
+    # EpisodeBatch中数据的维度是[batch_size, max_seq_length, *shape]，batch_size表示此时batch中有多少episode
+    # ReplayBuffer中数据的维度是[buffer_size, max_seq_length, *shape]，buffer_size表示此时buffer中有多少个episode的有效样本，max_seq_length表示一个episode的最大长度
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                           preprocess=preprocess,
                           device="cpu" if args.buffer_cpu_only else args.device)
@@ -146,14 +152,20 @@ def run_sequential(args, logger):
     # Setup multiagent controller here
     # 从mac_REGISTRY中选择并实例化一个多智能体控制器MAC
     # args.mac是一个参数，表示希望使用的多智能体控制器的类型，如qmix、coma等，使用这个作为key来选择适当的构造函数
+    # mac的主要作用是控制智能体
+    # 接收观测作为输入，输出智能体各个动作的隐藏层值
     mac = mac_REGISTRY[args.mac](buffer.scheme, groups, args)
 
     # Give runner the scheme
     # 为训练环境设置所需的数据格式、分组、预处理，以及多智能体控制器，使得训练环境准备好接收数据并进行训练
+    # 用于以episode为单位存储环境运行所产生的样本
     runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac)
 
     # Learner
     # 用于创建一个学习器learner，可以根据环境的反馈和MAC的决策来更新agent的决策以及可能的值函数
+    # learner对象需要学习的参数包括各个智能体的局部Q网络参数mac.parmeters()，以及混合网络参数learner.mixer.parameters()，两者共同组成了learner.params，然后用优化器learner.optimiser进行优化
+    # 最终mac集成进了learner模块，learner的更新中有着QMIX模块和RNN智能体模块，最终的学习也在学习器里面进行，所以对于Q值网络的模拟如Qtran的修改，都在此模块进行，重中之重
+    # 该对象的主要作用是依据特定算法对智能体参数进行训练更新
     learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args)
 
     # 如果使用CUDA，将learner移动到GPU
@@ -162,6 +174,7 @@ def run_sequential(args, logger):
 
     # 从checkpoint加载模型
     # 首先检查是否已经指定了一个检查点路径，如果没有指定，就没有必要继续后面的操作
+    # 如果有已经保存的模型，就读取此模型，接着训练
     if args.checkpoint_path != "":
 
         # 创建一个空列表，用于存储检查点路径中的时间步信息
@@ -212,6 +225,7 @@ def run_sequential(args, logger):
 
     # start training
     # 开始训练，初始化episode计数器，用于跟踪训练过程中已经完成 的轮数
+    # TODO https://blog.csdn.net/m0_62313824/article/details/134840516?spm=1001.2014.3001.5502
     episode = 0
     # 初始化上一次测试评估的时间步数，设置为一个负数，确保在开始时进行初始评估
     last_test_T = -args.test_interval - 1
@@ -232,13 +246,15 @@ def run_sequential(args, logger):
 
         # Run for a whole episode at a time
         # 运行一整个episode，将获得的episode数据存储在episode_batch中
+        # 利用当前智能体mac在环境中运行，产生一个episode的样本数据episode_batch，存储在runner.batch中
         episode_batch = runner.run(test_mode=False)
         # 将episode_batch插入回放缓冲区，以便后续的样本采样和训练
+        # 将EpisodeBatch变量ep_batch中的样本全部存储到buffer中
         buffer.insert_episode_batch(episode_batch)
 
         # 检查回放缓冲区是否包含足够的样本，可以进行批量采样
         if buffer.can_sample(args.batch_size):
-            # 从回放缓冲区中采样一批数据
+            # 从回放缓冲区中采样出batch_size个episode的样本用于训练
             episode_sample = buffer.sample(args.batch_size)
 
             # Truncate batch to only filled timesteps
@@ -251,6 +267,7 @@ def run_sequential(args, logger):
                 episode_sample.to(args.device)
 
             # 使用采样的数据对学习器进行训练
+            # episode_sample:表示当前用于训练的样本，t_env:表示当前环境运行的总时间步数，episode:表示当前环境运行的总episode数，该方法利用特定算法对learner.params进行更新
             learner.train(episode_sample, runner.t_env, episode)
 
         # Execute test runs once in a while

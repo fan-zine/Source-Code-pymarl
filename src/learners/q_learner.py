@@ -6,6 +6,7 @@ import torch as th
 from torch.optim import RMSprop
 
 
+# 如果想修改QMIX之类的网络结构如Qtran，就在此处修改
 class QLearner:
     def __init__(self, mac, scheme, logger, args):
         self.args = args

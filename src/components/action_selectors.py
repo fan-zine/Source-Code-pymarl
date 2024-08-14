@@ -32,6 +32,7 @@ class MultinomialActionSelector():
 REGISTRY["multinomial"] = MultinomialActionSelector
 
 
+# 埃普西隆贪心动作选择器
 class EpsilonGreedyActionSelector():
 
     def __init__(self, args):
