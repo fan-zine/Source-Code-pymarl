@@ -225,7 +225,6 @@ def run_sequential(args, logger):
 
     # start training
     # 开始训练，初始化episode计数器，用于跟踪训练过程中已经完成 的轮数
-    # TODO https://blog.csdn.net/m0_62313824/article/details/134840516?spm=1001.2014.3001.5502
     episode = 0
     # 初始化上一次测试评估的时间步数，设置为一个负数，确保在开始时进行初始评估
     last_test_T = -args.test_interval - 1
@@ -255,12 +254,13 @@ def run_sequential(args, logger):
         # 检查回放缓冲区是否包含足够的样本，可以进行批量采样
         if buffer.can_sample(args.batch_size):
             # 从回放缓冲区中采样出batch_size个episode的样本用于训练
+            # 包含batch_zise个episode，每个序列可能有不同的长度
             episode_sample = buffer.sample(args.batch_size)
 
             # Truncate batch to only filled timesteps
-            # 计算采样批次中填充的最大时间步数
+            # 找到采样的批次中最长的那个序列的时间步，并把它短于它的都填充到这个长度
             max_ep_t = episode_sample.max_t_filled()
-            # 截断批次数据，只保留填充的时间步数
+            # 每个episode都只保留前max_ep_t个时间步，这样确保不会因为序列长度而丢失任何信息
             episode_sample = episode_sample[:, :max_ep_t]
 
             if episode_sample.device != args.device:
